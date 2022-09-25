@@ -3,77 +3,60 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Auth\LoginRequest;
+use App\Http\Requests\Auth\RegisterRequest;
+use App\Http\Resources\Auth\LoginResourse;
+use App\Http\Resources\Auth\RegisterResourse;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use PHPOpenSourceSaver\JWTAuth\JWTAuth;
 
 class AuthController extends Controller
 {
     public function __construct()
     {
-        $this->middleware('auth:api', ['except' => ['login','register']]);
+       // $this->middleware('auth:api', ['except' => ['login','register']]);
     }
 
-    public function login(Request $request)
+    public function login(LoginRequest $request)
     {
-        $request->validate([
-            'email' => 'required|string|email',
-            'password' => 'required|string',
-        ]);
-        $credentials = $request->only('email', 'password');
+        $data = $request->validated();
 
-        $token = Auth::attempt($credentials);
-        if (!$token) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Unauthorized',
-            ], 401);
+        if (!$token = JwtAuth::attempt($data)) {
+
+            return response()->json(['error' => 'Unauthorized']);
         }
+        $user = auth()->user();
 
-        $user = Auth::user();
-        return response()->json([
-            'status' => 'success',
-            'user' => $user,
-            'authorisation' => [
-                'token' => $token,
-                'type' => 'bearer',
-            ]
-        ]);
+        return new LoginResourse($user, $token);
 
     }
 
-    public function register(Request $request){
-        $request->validate([
-            'name' => 'required|string|max:255',
-            'first_name' => 'required|string|max:255',
-            'last_name' => 'required|string|max:255',
-            'parent_id' => '',
-            'email' => 'required|string|email|max:255|unique:users',
-            'password' => 'required|string|min:6',
-        ]);
+    public function register(RegisterRequest $request){
+        $data = $request->validated();
+        $password = $data['password'];
 
-        $user = User::create([
-            'name' => $request->name,
-            'email' => $request->email,
-            'password' => Hash::make($request->password),
-        ]);
+        $data['password'] = Hash::make($data['password']);
+        $data['role'] = USER::ROLE_USER;
+        $user = User::create($data);
+        /* Видача токена одразу після реєстрації*/
+        $data['password'] =  $password;
+        $token = JwtAuth::attempt($data);
 
-        $token = Auth::login($user);
-        return response()->json([
-            'status' => 'success',
-            'message' => 'User created successfully',
-            'user' => $user,
-            'authorisation' => [
-                'token' => $token,
-                'type' => 'bearer',
-            ]
-        ]);
+        return new RegisterResourse($user, $token);
     }
 
     public function logout()
     {
-        Auth::logout();
+        if(!auth()->user()){
+            return response()->json([
+                'status' => 'Error',
+                'message' => 'Unauthorized',
+            ]);
+        }
+        auth()->logout();
         return response()->json([
             'status' => 'success',
             'message' => 'Successfully logged out',
@@ -82,17 +65,26 @@ class AuthController extends Controller
 
     public function me()
     {
+        if(auth()->user()){
+            auth()->user();
+            return  Auth::user();
+        }
         return response()->json([
-            'status' => 'success',
-            'user' => Auth::user(),
+            'error' => 'Unauthorized'
         ]);
     }
 
     public function refresh()
     {
+        if(!auth()->user()){
+            return response()->json([
+                'status' => 'Error',
+                'message' => 'Unauthorized',
+            ]);
+        }
         return response()->json([
             'status' => 'success',
-            'user' => Auth::user(),
+            'user' => auth()->user(),
             'authorisation' => [
                 'token' => Auth::refresh(),
                 'type' => 'bearer',

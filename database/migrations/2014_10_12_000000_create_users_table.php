@@ -19,11 +19,10 @@ return new class extends Migration
             $table->string('email')->unique();
             $table->string('password');
             $table->string('role')->default('teacher');
-            $table->string('first_name')->nullable();
-            $table->string('last_name')->nullable();
-            $table->unsignedBigInteger('parent_id')->nullable();
-            $table->timestamp('email_verified_at')->nullable();
-            $table->rememberToken();
+            $table->string('first_name')->default('');
+            $table->string('last_name')->default('');
+            $table->unsignedBigInteger('parent_id')->default(0);
+            $table->timestamp('email_verified_at');
             $table->timestamps();
         });
     }
